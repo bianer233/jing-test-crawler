@@ -11,29 +11,52 @@ const util = require('util');
 const options = {
     logLevel: 'info',
     //   disableDeviceEmulation: true,
-    chromeFlags: ['--headless', '--preset=desktop']
+    chromeFlags: ['--headless', '--preset=desktop', '--no-sandbox']
 };
 
+const TIMESTAMP = (new Date()).getTime();
+
+const logger = {
+    writeFile: (str, suffix, division) => {
+        const fileName = TIMESTAMP + suffix;
+        fs.appendFile(fileName, str + (division||'') + '\n', function (err) {
+            if (err) return console.log(err);
+            console.log(str + ' > ' + fileName);
+        });
+    },
+    error: function(str) {
+        this.writeFile(str, "_error.txt");
+    },
+    result: function(str) {
+        this.writeFile(str, "_result.txt", ",");
+    },
+    log: function(str) {
+        this.writeFile(str, "_log.txt");
+    },
+    write: function(str, fileName) {
+        if(!fileName){
+            console.error("!!! fileName is required !!!")
+            return 
+        }
+        this.writeFile(str, "_log.txt");
+    },
+};
 
 function writeToReport(lhr, needHtml) {
-    //   console.log("!!!!!!!!!", lhr);
+    const url = lhr.requestedUrl;
     const metricKeys = ["first-contentful-paint", "interactive", "speed-index", "total-blocking-time", "largest-contentful-paint", "cumulative-layout-shift"]
     metricKeys.map((metricKey) => {
-        let { displayValue, numericValue, score } = lhr.audits[metricKey];
-        return {
-            [metricKey]: {
-                displayValue, numericValue, score
-            }
-        }
+        let { displayValue, numericValue, score, id } = lhr.audits[metricKey];
+        return { displayValue, numericValue, score, id }
     })
     const metrics = metricKeys.map((metricKey) => {
         let { displayValue, numericValue, score, id } = lhr.audits[metricKey];
         return { displayValue, numericValue, score, id }
     })
-
-    //   console.log(`Lighthouse scores: ${Object.values(lhr.categories.performance.audits).map(c => c.score).join(', ')}`);
+    logger.result(JSON.stringify({
+        [url]: metrics
+    }))
     if (needHtml) {
-        let url = lhr.requestedUrl;
         try {
             let tempUrl = new URL(url)
             let resultName = encodeURIComponent(tempUrl.pathname) + ".html"
@@ -42,9 +65,8 @@ function writeToReport(lhr, needHtml) {
                 if (err) throw err;
             });
         } catch (e) {
-            console.log("Writing Report Error", url, e)
+            console.log("Writing HTML Report Error", url, e)
         }
-
     }
     return metrics;
 }
@@ -61,18 +83,40 @@ async function lighthouseFromPuppeteer(url, options, config = null) {
 
     // Run Lighthouse
     const { lhr } = await lighthouse(url, options, config);
-    const result = writeToReport(lhr, true);
-    console.log(result)
+    const result = writeToReport(lhr, false);
     await browser.disconnect();
     await chrome.kill();
 }
 
 
+const source_group = {
+    serverside: require("./sources/server_rendering.json").map(item => item.loc),
+    new_ll: require("./sources/new_learning.json").map(item => item.loc),
+}
 
-let result = lighthouseFromPuppeteer("https://developer.cisco.com/learningcenter/", options, {
-    extends: 'lighthouse:default',
-    settings: {
-        formFactor: 'desktop',
-        screenEmulation: { width: 1240, height: 1000, mobile: false }
-    },
-});
+const input_array = source_group.serverside;
+
+let index_start = 0;
+let index_end = input_array.length;
+async function processArray() {
+    let array = input_array.slice(index_start, index_end);
+    for (let i = 0; i < array.length; i++) {
+        console.log("crawling", i, array[i]);
+        try {
+            await lighthouseFromPuppeteer(array[i], options, {
+                extends: 'lighthouse:default',
+                settings: {
+                    formFactor: 'desktop',
+                    screenEmulation: { width: 1240, height: 1000, mobile: false }
+                },
+            });
+        } catch (e) {
+            console.log("Error", e, array[i])
+            logger.error(array[i]);
+        }
+    }
+    const timeDiff = (new Date().getTime()) - TIMESTAMP;
+    console.log('Done!', Math.floor(timeDiff/1000/60/60)+" hours", Math.floor(timeDiff/1000/60)+" minutes");
+}
+
+processArray();
