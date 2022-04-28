@@ -19,24 +19,24 @@ const TIMESTAMP = (new Date()).getTime();
 const logger = {
     writeFile: (str, suffix, division) => {
         const fileName = TIMESTAMP + suffix;
-        fs.appendFile(fileName, str + (division||'') + '\n', function (err) {
+        fs.appendFile(fileName, str + (division || '') + '\n', function (err) {
             if (err) return console.log(err);
             console.log(str + ' > ' + fileName);
         });
     },
-    error: function(str) {
+    error: function (str) {
         this.writeFile(str, "_error.txt");
     },
-    result: function(str) {
+    result: function (str) {
         this.writeFile(str, "_result.txt", ",");
     },
-    log: function(str) {
+    log: function (str) {
         this.writeFile(str, "_log.txt");
     },
-    write: function(str, fileName) {
-        if(!fileName){
+    write: function (str, fileName) {
+        if (!fileName) {
             console.error("!!! fileName is required !!!")
-            return 
+            return
         }
         this.writeFile(str, "_log.txt");
     },
@@ -89,15 +89,35 @@ async function lighthouseFromPuppeteer(url, options, config = null) {
 }
 
 
+const skipDomain = [
+    "https://developer.cisco.com/learning/labs/tags/",
+    "https://developer.cisco.com/learning/labs/page/",
+    "https://developer.cisco.com/fileMedia/download/",
+    "https://pubhub.devnetcloud.com/media/",
+    "https://communities.cisco.com"
+]
+const filterFn = (link) => {
+    let flag = true;
+    skipDomain.forEach((domain) => {
+        if (link.startsWith(domain)) {
+            flag = false
+        }
+    })
+    return flag;
+}
+
 const source_group = {
     serverside: require("./sources/server_rendering.json").map(item => item.loc),
     new_ll: require("./sources/new_learning.json").map(item => item.loc),
+    all_urls: require("./sources/all_urls_array.json").filter(filterFn)
 }
 
-const input_array = source_group.serverside;
+const input_array = source_group.all_urls;
 
 let index_start = 0;
 let index_end = input_array.length;
+console.log("TOTAL", index_start, index_end);
+
 async function processArray() {
     let array = input_array.slice(index_start, index_end);
     for (let i = 0; i < array.length; i++) {
@@ -116,7 +136,7 @@ async function processArray() {
         }
     }
     const timeDiff = (new Date().getTime()) - TIMESTAMP;
-    console.log('Done!', Math.floor(timeDiff/1000/60/60)+" hours", Math.floor(timeDiff/1000/60)+" minutes");
+    console.log('Done!', Math.floor(timeDiff / 1000 / 60 / 60) + " hours", Math.floor(timeDiff / 1000 / 60) + " minutes");
 }
 
 processArray();
