@@ -1,6 +1,7 @@
 const fs = require('fs');
 const lighthouse = require('lighthouse');
 const puppeteer = require('puppeteer');
+const constants = require('./constants.js');
 
 const chromeLauncher = require('chrome-launcher');
 // const reportGenerator = require('lighthouse/lighthouse-core/report/report-generator');
@@ -11,7 +12,7 @@ const util = require('util');
 const options = {
     logLevel: 'info',
     //   disableDeviceEmulation: true,
-    chromeFlags: ['--headless', '--preset=desktop', '--no-sandbox']
+    chromeFlags: ['--headless', '--preset=desktop', '--no-sandbox', '--throttlingMethod=provided']
 };
 
 const TIMESTAMP = (new Date()).getTime();
@@ -112,10 +113,11 @@ const source_group = {
     all_urls: require("./sources/all_urls_array.json").filter(filterFn)
 }
 
-const input_array = source_group.all_urls;
+const input_array = source_group.new_ll;
 
 let index_start = 0;
-let index_end = input_array.length;
+// let index_end = 1;
+let index_end = input_array. length;
 console.log("TOTAL", index_start, index_end);
 
 async function processArray() {
@@ -127,7 +129,12 @@ async function processArray() {
                 extends: 'lighthouse:default',
                 settings: {
                     formFactor: 'desktop',
-                    screenEmulation: { width: 1240, height: 1000, mobile: false }
+                    screenEmulation: { width: 1240, height: 1000, mobile: false },
+                    // onlyCategories: ['performance'],
+                    // onlyAudits: [
+                    //     'interactive',
+                    // ],
+                    throttling: constants.throttling.fastDestopTest,
                 },
             });
         } catch (e) {
@@ -136,7 +143,8 @@ async function processArray() {
         }
     }
     const timeDiff = (new Date().getTime()) - TIMESTAMP;
-    console.log('Done!', Math.floor(timeDiff / 1000 / 60 / 60) + " hours", Math.floor(timeDiff / 1000 / 60) + " minutes");
+    const hours = Math.floor(timeDiff / 1000 / 60 / 60);
+    console.log('Done!', hours + " hours", Math.floor((timeDiff - hours*60*1000) / 1000 / 60) + " minutes");
 }
 
 processArray();
